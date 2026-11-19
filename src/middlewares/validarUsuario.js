@@ -1,13 +1,40 @@
+const mongoose = require('mongoose');
+
 const PATRON_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PATRON_TELEFONO = /^\+?[0-9]{7,15}$/;
 
-// Valida que :id sea un entero positivo
+// Valida que :id sea un ObjectId válido de MongoDB
 function validarId(req, res, next) {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ error: 'El id debe ser un número entero positivo.' });
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({
+      error: 'El parámetro id debe ser un identificador válido de MongoDB.',
+    });
   }
-  req.params.id = id;
+  next();
+}
+
+// Valida las credenciales de inicio de sesión
+function validarLogin(req, res, next) {
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return res.status(400).json({ error: 'El cuerpo de la petición debe ser un objeto JSON.' });
+  }
+
+  const errores = {};
+  const { email, password } = body;
+
+  if (typeof email !== 'string' || !PATRON_EMAIL.test(email.trim())) {
+    errores.email = 'El email es obligatorio y debe tener un formato válido.';
+  }
+
+  if (typeof password !== 'string' || password.length === 0) {
+    errores.password = 'La contraseña es obligatoria.';
+  }
+
+  if (Object.keys(errores).length > 0) {
+    return res.status(400).json({ error: 'Datos inválidos.', detalles: errores });
+  }
+
   next();
 }
 
@@ -48,8 +75,8 @@ function validarUsuario({ parcial }) {
       }
     }
 
-    // El teléfono siempre es opcional (puede ser null para borrarlo)
-    if (presente(telefono) && telefono !== null) {
+    // El teléfono siempre es opcional (puede ser null o cadena vacía para borrarlo)
+    if (presente(telefono) && telefono !== null && telefono !== '') {
       if (typeof telefono !== 'string' || !PATRON_TELEFONO.test(telefono.trim())) {
         errores.telefono = 'El teléfono debe contener entre 7 y 15 dígitos (puede iniciar con +).';
       }
@@ -69,4 +96,4 @@ function validarUsuario({ parcial }) {
   };
 }
 
-module.exports = { validarId, validarUsuario };
+module.exports = { validarId, validarLogin, validarUsuario };

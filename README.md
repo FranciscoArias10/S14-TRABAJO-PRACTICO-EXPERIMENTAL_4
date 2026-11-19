@@ -1,95 +1,109 @@
-# API REST de Usuarios — Node.js + Express + PostgreSQL
+# Aplicación Web Full Stack de Usuarios — React + Node.js + Express + MongoDB + JWT
 
-API REST que gestiona usuarios (registro, consulta, actualización y eliminación) y guarda los datos en una base de datos PostgreSQL. Trabajo Práctico Experimental 3 de Desarrollo Web.
+Aplicación web Full Stack para la gestión de usuarios y autenticación segura mediante JSON Web Tokens (JWT), desarrollada como parte de la **Guía de Práctica 4** de Desarrollo Web (UNEMI).
 
 ## Tecnologías utilizadas
 
-- **Node.js**: entorno de ejecución de JavaScript
-- **Express 5**: framework para la API REST
-- **PostgreSQL**: base de datos relacional
-- **pg (node-postgres)**: conexión entre Node.js y PostgreSQL con un pool y consultas parametrizadas
-- **bcryptjs**: cifrado de contraseñas
-- **dotenv**: variables de entorno
-- **cors**: permite peticiones desde otros orígenes
-- **Postman**: pruebas de los endpoints
+### Back-End
+- **Node.js**: entorno de ejecución de JavaScript.
+- **Express 5**: framework para la API REST.
+- **MongoDB + Mongoose**: base de datos NoSQL y modelado de documentos para la colección `usuarios` (con respaldo automático integrado mediante `mongodb-memory-server` si no hay un servicio local de MongoDB activo en `127.0.0.1:27017`).
+- **jsonwebtoken (JWT)**: generación y verificación de tokens de autenticación.
+- **bcryptjs**: cifrado seguro de contraseñas con salt.
+- **dotenv** y **cors**: variables de entorno y comunicación entre Front-End y Back-End.
+
+### Front-End
+- **React 19 + Vite**: interfaz web interactiva conectada a la API REST.
 
 ## Funcionalidades implementadas
 
-- CRUD completo de usuarios
-- Validación de los datos JSON (campos obligatorios, formato de email, longitud, teléfono)
-- Contraseñas cifradas con bcrypt, que nunca se devuelven en las respuestas
-- Email único (si se repite, la API responde `409 Conflict`)
-- Actualización parcial: en `PUT` solo se modifican los campos enviados
-- Códigos HTTP adecuados y mensajes de error claros en JSON
-- Script que crea automáticamente la base de datos y la tabla
+- **Registro e Inicio de Sesión**: creación de usuarios en MongoDB con validación de campos, email único (`409 Conflict` si se repite) y contraseñas cifradas con `bcryptjs` (nunca se exponen en respuestas JSON).
+- **Autenticación con JWT**: generación de token JWT al registrarse o iniciar sesión (`POST /api/auth/login`), con expiración configurable.
+- **Middleware de Validación y Rutas Protegidas**: validación del encabezado `Authorization: Bearer <token>` en rutas protegidas (`GET /api/auth/perfil`, `GET /usuarios`, `GET /usuarios/:id`, `PUT /usuarios/:id`, `DELETE /usuarios/:id`), devolviendo `401 Unauthorized` cuando falta el token o es inválido.
+- **CRUD Transaccional de Usuarios**: creación, consulta, búsqueda, actualización parcial y eliminación de usuarios en MongoDB desde la interfaz React.
+- **Panel de Verificación de Seguridad JWT en React**: permite probar en tiempo real el acceso autorizado (`200 OK`) con token válido y el rechazo de accesos no autorizados (`401 Unauthorized`) sin token o con token inválido.
 
-## Endpoints
+## Endpoints de la API
 
-| Método | Ruta            | Descripción        | Respuesta exitosa |
-|--------|-----------------|--------------------|-------------------|
-| POST   | `/usuarios`     | Registrar usuario  | `201 Created`     |
-| GET    | `/usuarios`     | Consultar todos    | `200 OK`          |
-| GET    | `/usuarios/:id` | Consultar por ID   | `200 OK`          |
-| PUT    | `/usuarios/:id` | Actualizar usuario | `200 OK`          |
-| DELETE | `/usuarios/:id` | Eliminar usuario   | `200 OK`          |
+### Rutas Públicas
+| Método | Ruta | Descripción | Respuesta exitosa |
+|--------|------|-------------|-------------------|
+| GET | `/` | Información general de la API | `200 OK` |
+| POST | `/api/auth/register` (o `/usuarios`) | Registrar usuario y emitir JWT | `201 Created` |
+| POST | `/api/auth/login` (o `/usuarios/login`) | Iniciar sesión y generar JWT | `200 OK` |
 
-**Errores:** `400` datos inválidos o JSON mal formado · `404` usuario o ruta no encontrada · `409` email duplicado · `500` error interno.
+### Rutas Protegidas (requieren `Authorization: Bearer <token>`)
+| Método | Ruta | Descripción | Respuesta exitosa |
+|--------|------|-------------|-------------------|
+| GET | `/api/auth/perfil` (o `/usuarios/perfil`) | Consultar perfil del usuario autenticado | `200 OK` |
+| GET | `/usuarios` | Listar todos los usuarios en MongoDB | `200 OK` |
+| GET | `/usuarios/:id` | Consultar un usuario por ObjectId | `200 OK` |
+| PUT | `/usuarios/:id` | Actualizar parcialmente un usuario | `200 OK` |
+| DELETE | `/usuarios/:id` | Eliminar un usuario | `200 OK` |
 
-### Ejemplo de body (POST)
-
-```json
-{
-  "nombre": "María",
-  "apellido": "Gómez",
-  "email": "maria.gomez@correo.com",
-  "password": "secreto123",
-  "telefono": "0991112233"
-}
-```
+**Códigos de error:** `400` datos o ID inválido · `401` token ausente/inválido o credenciales incorrectas · `404` usuario o ruta no encontrada · `409` email duplicado · `500` error interno.
 
 ## Estructura del proyecto
 
 ```
-├── database/
-│   └── schema.sql                 # Tabla usuarios + datos de ejemplo
+├── frontend/                      # Aplicación React + Vite
+│   ├── src/
+│   │   ├── services/api.js        # Consumo de API REST y manejo de JWT
+│   │   ├── App.jsx                # Registro, login, pruebas 401/200 y CRUD protegido
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
 ├── postman/
 │   └── API_Usuarios.postman_collection.json
 ├── scripts/
-│   └── initDb.js                  # Crea la BD y ejecuta schema.sql
+│   └── initDb.js                  # Inicializa colección en MongoDB y datos de ejemplo
 ├── src/
-│   ├── config/db.js               # Conexión (Pool) a PostgreSQL
-│   ├── controllers/usuarios.controller.js
+│   ├── config/db.js               # Conexión a MongoDB + siembra inicial
+│   ├── controllers/
+│   │   ├── auth.controller.js     # Registro, login con JWT y perfil protegido
+│   │   └── usuarios.controller.js # CRUD de usuarios en MongoDB
 │   ├── middlewares/
-│   │   ├── validarUsuario.js      # Validación de id y body
-│   │   └── errorHandler.js        # 404 y manejo central de errores
-│   ├── routes/usuarios.routes.js
-│   ├── app.js                     # Configuración de Express
-│   └── server.js                  # Punto de entrada
+│   │   ├── auth.js                # Generación y verificación de JWT (verificarToken)
+│   │   ├── errorHandler.js        # 404 y manejo central de errores
+│   │   └── validarUsuario.js      # Validación de ObjectId, login y datos de usuario
+│   ├── models/
+│   │   └── Usuario.js             # Esquema y modelo Mongoose
+│   ├── routes/
+│   │   ├── auth.routes.js
+│   │   └── usuarios.routes.js
+│   ├── app.js                     # Configuración de Express y CORS
+│   └── server.js                  # Arranque de MongoDB y servidor HTTP
 ├── .env.example
 └── package.json
 ```
 
 ## Instalación y ejecución
 
-1. Clonar el repositorio e instalar dependencias:
-   ```bash
-   npm install
-   ```
-2. Copiar `.env.example` como `.env` y poner la contraseña de PostgreSQL:
-   ```bash
-   cp .env.example .env
-   ```
-3. Crear la base de datos y la tabla:
-   ```bash
-   npm run db:init
-   ```
-   (También puedes ejecutar `database/schema.sql` manualmente en pgAdmin.)
-4. Iniciar el servidor:
-   ```bash
-   npm run dev
-   ```
-   La API queda disponible en `http://localhost:3000`.
+### 1. Configurar variables de entorno
+Copia `.env.example` como `.env` (ya viene configurado por defecto para puerto `3000`, MongoDB local y JWT):
+```bash
+cp .env.example .env
+```
+
+### 2. Instalar dependencias e iniciar el Back-End
+```bash
+npm install
+npm run db:init
+npm run dev
+```
+El Back-End quedará disponible en `http://localhost:3000`.
+> **Nota sobre MongoDB:** Si tienes MongoDB instalado localmente (`mongodb://127.0.0.1:27017/api_usuarios`) o configuras una URI de MongoDB Atlas en `.env`, la aplicación se conectará directamente a esa instancia. Si no hay un servicio MongoDB corriendo en el puerto `27017`, el proyecto inicia automáticamente una instancia local integrada (`mongodb-memory-server`) con 2 usuarios de prueba precargados (`ana.torres@correo.com` y `luis.perez@correo.com`, contraseña `123456`).
+
+### 3. Instalar dependencias e iniciar el Front-End (React)
+En una segunda terminal:
+```bash
+npm run frontend:install
+npm run frontend:dev
+```
+El Front-End quedará disponible en `http://localhost:5173`.
 
 ## Pruebas con Postman
 
-Importa `postman/API_Usuarios.postman_collection.json` en Postman (**Import → File**). La colección trae las peticiones del CRUD y los casos de error (datos inválidos, email duplicado, id inexistente). La variable `baseUrl` vale `http://localhost:3000` y `usuarioId` se rellena sola al registrar un usuario.
+Importa `postman/API_Usuarios.postman_collection.json` en Postman (**Import → File**). Al ejecutar **Registrar usuario** o **Iniciar sesión**, el token JWT y el `usuarioId` se guardan automáticamente en las variables de colección para probar las rutas protegidas y los casos de error (`401`, `400`, `404`, `409`).

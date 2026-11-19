@@ -1,19 +1,25 @@
 {
   "name": "api-rest-usuarios",
   "version": "1.0.0",
-  "description": "API REST con Node.js, Express y PostgreSQL para gestionar usuarios (CRUD)",
+  "description": "Aplicación web Full Stack con React, Node.js, Express, MongoDB y autenticación JWT",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "db:init": "node scripts/initDb.js"
+    "db:init": "node scripts/initDb.js",
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build"
   },
   "keywords": [
     "api",
     "rest",
     "express",
-    "postgresql",
-    "crud"
+    "mongodb",
+    "mongoose",
+    "jwt",
+    "react",
+    "fullstack"
   ],
   "license": "MIT",
   "dependencies": {
@@ -21,7 +27,9 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.10",
     "express": "^5.3.0",
-    "pg": "^8.23.1"
+    "jsonwebtoken": "^9.0.3",
+    "mongodb-memory-server": "^11.3.0",
+    "mongoose": "^9.12.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

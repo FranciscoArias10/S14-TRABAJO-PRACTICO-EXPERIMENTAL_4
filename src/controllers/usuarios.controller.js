@@ -1,82 +1,91 @@
 const bcrypt = require('bcryptjs');
-const pool = require('../config/db');
+const Usuario = require('../models/Usuario');
+const { generarToken } = require('../middlewares/auth');
 
-// Columnas que se devuelven al cliente (nunca se expone el password)
-const COLUMNAS = 'id, nombre, apellido, email, telefono, creado_en, actualizado_en';
-
-// POST /usuarios -> Registrar
+// POST /usuarios -> Registrar usuario en MongoDB y generar JWT
 async function crearUsuario(req, res) {
   const { nombre, apellido, email, password, telefono } = req.body;
+  const emailNormalizado = email.trim().toLowerCase();
+
+  const existente = await Usuario.findOne({ email: emailNormalizado });
+  if (existente) {
+    return res.status(409).json({ error: 'Ya existe un usuario registrado con ese email.' });
+  }
+
   const passwordHash = await bcrypt.hash(password, 10);
+  const usuario = await Usuario.create({
+    nombre: nombre.trim(),
+    apellido: apellido.trim(),
+    email: emailNormalizado,
+    password: passwordHash,
+    telefono: telefono?.trim() || null,
+  });
 
-  const { rows } = await pool.query(
-    `INSERT INTO usuarios (nombre, apellido, email, password, telefono)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING ${COLUMNAS}`,
-    [nombre.trim(), apellido.trim(), email.trim().toLowerCase(), passwordHash, telefono?.trim() || null]
-  );
+  const token = generarToken(usuario);
 
-  res.status(201).json({ mensaje: 'Usuario registrado correctamente.', usuario: rows[0] });
+  return res.status(201).json({
+    mensaje: 'Usuario registrado correctamente.',
+    token,
+    usuario,
+  });
 }
 
-// GET /usuarios -> Consultar todos
+// GET /usuarios -> Consultar todos (ruta protegida)
 async function obtenerUsuarios(req, res) {
-  const { rows } = await pool.query(`SELECT ${COLUMNAS} FROM usuarios ORDER BY id`);
-  res.status(200).json({ total: rows.length, usuarios: rows });
+  const usuarios = await Usuario.find().sort({ creado_en: -1 });
+  return res.status(200).json({ total: usuarios.length, usuarios });
 }
 
-// GET /usuarios/:id -> Consultar por ID
+// GET /usuarios/:id -> Consultar por ID (ruta protegida)
 async function obtenerUsuarioPorId(req, res) {
-  const { rows } = await pool.query(`SELECT ${COLUMNAS} FROM usuarios WHERE id = $1`, [req.params.id]);
+  const usuario = await Usuario.findById(req.params.id);
 
-  if (rows.length === 0) {
+  if (!usuario) {
     return res.status(404).json({ error: `No existe un usuario con id ${req.params.id}.` });
   }
-  res.status(200).json(rows[0]);
+  return res.status(200).json(usuario);
 }
 
-// PUT /usuarios/:id -> Actualizar (solo los campos enviados)
+// PUT /usuarios/:id -> Actualizar (solo los campos enviados, ruta protegida)
 async function actualizarUsuario(req, res) {
   const { nombre, apellido, email, password, telefono } = req.body;
-  const campos = [];
-  const valores = [];
+  const datos = {};
 
-  const agregar = (columna, valor) => {
-    valores.push(valor);
-    campos.push(`${columna} = $${valores.length}`);
-  };
+  if (nombre !== undefined) datos.nombre = nombre.trim();
+  if (apellido !== undefined) datos.apellido = apellido.trim();
+  if (email !== undefined) {
+    const emailNormalizado = email.trim().toLowerCase();
+    const duplicado = await Usuario.findOne({
+      email: emailNormalizado,
+      _id: { $ne: req.params.id },
+    });
+    if (duplicado) {
+      return res.status(409).json({ error: 'Ya existe un usuario registrado con ese email.' });
+    }
+    datos.email = emailNormalizado;
+  }
+  if (password !== undefined) datos.password = await bcrypt.hash(password, 10);
+  if (telefono !== undefined) datos.telefono = telefono?.trim() || null;
 
-  if (nombre !== undefined) agregar('nombre', nombre.trim());
-  if (apellido !== undefined) agregar('apellido', apellido.trim());
-  if (email !== undefined) agregar('email', email.trim().toLowerCase());
-  if (password !== undefined) agregar('password', await bcrypt.hash(password, 10));
-  if (telefono !== undefined) agregar('telefono', telefono?.trim() || null);
+  const usuario = await Usuario.findByIdAndUpdate(req.params.id, datos, {
+    returnDocument: 'after',
+    runValidators: true,
+  });
 
-  valores.push(req.params.id);
-  const { rows } = await pool.query(
-    `UPDATE usuarios
-     SET ${campos.join(', ')}, actualizado_en = NOW()
-     WHERE id = $${valores.length}
-     RETURNING ${COLUMNAS}`,
-    valores
-  );
-
-  if (rows.length === 0) {
+  if (!usuario) {
     return res.status(404).json({ error: `No existe un usuario con id ${req.params.id}.` });
   }
-  res.status(200).json({ mensaje: 'Usuario actualizado correctamente.', usuario: rows[0] });
+  return res.status(200).json({ mensaje: 'Usuario actualizado correctamente.', usuario });
 }
 
-// DELETE /usuarios/:id -> Eliminar
+// DELETE /usuarios/:id -> Eliminar (ruta protegida)
 async function eliminarUsuario(req, res) {
-  const { rows } = await pool.query(`DELETE FROM usuarios WHERE id = $1 RETURNING ${COLUMNAS}`, [
-    req.params.id,
-  ]);
+  const usuario = await Usuario.findByIdAndDelete(req.params.id);
 
-  if (rows.length === 0) {
+  if (!usuario) {
     return res.status(404).json({ error: `No existe un usuario con id ${req.params.id}.` });
   }
-  res.status(200).json({ mensaje: 'Usuario eliminado correctamente.', usuario: rows[0] });
+  return res.status(200).json({ mensaje: 'Usuario eliminado correctamente.', usuario });
 }
 
 module.exports = {

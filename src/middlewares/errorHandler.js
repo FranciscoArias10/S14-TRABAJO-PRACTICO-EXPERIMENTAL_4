@@ -11,9 +11,19 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: 'El cuerpo de la petición no es un JSON válido.' });
   }
 
-  // Violación de restricción UNIQUE en PostgreSQL (email duplicado)
-  if (err.code === '23505') {
+  // Violación de índice único en MongoDB (email duplicado)
+  if (err.code === 11000 || err.code === '23505') {
     return res.status(409).json({ error: 'Ya existe un usuario registrado con ese email.' });
+  }
+
+  // Error de casteo de ObjectId en Mongoose
+  if (err.name === 'CastError') {
+    return res.status(400).json({ error: 'Identificador de usuario no válido.' });
+  }
+
+  // Errores de validación de esquema en Mongoose
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({ error: 'Datos inválidos.', detalles: err.message });
   }
 
   console.error(err);

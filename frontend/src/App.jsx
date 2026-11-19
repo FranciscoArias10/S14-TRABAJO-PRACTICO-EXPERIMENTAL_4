@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  API_URL,
   createUsuario,
   decodeJwtPayload,
   deleteUsuario,
@@ -329,9 +328,6 @@ function App() {
       <header className="topbar">
         <div>
           <h1>Aplicación Full Stack — Usuarios con MongoDB & JWT</h1>
-          <p>
-            React + Node.js + Express + MongoDB ({API_URL})
-          </p>
         </div>
 
         <div className="topbar-status">
